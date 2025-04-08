@@ -22,7 +22,8 @@ RUN pip install plotly
 WORKDIR /app
 
 # Clone uiCA from your GitHub fork
-RUN git clone https://github.com/ReyXX777/uiCA.git
+RUN git clone --recurse-submodules https://github.com/ReyXX777/uiCA.git
+
 
 # Set up uiCA safely
 WORKDIR /app/uiCA

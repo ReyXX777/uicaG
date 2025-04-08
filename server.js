@@ -1,5 +1,4 @@
 const express = require("express");
-const multer = require("multer");
 const fs = require("fs");
 const { exec } = require("child_process");
 const cors = require("cors");
@@ -7,7 +6,7 @@ const path = require("path");
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); // Allows parsing of JSON request bodies
 
 // Ensure temp folder exists
 const tempDir = path.join(__dirname, "temp");
@@ -15,13 +14,11 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-const upload = multer({ dest: tempDir });
-
-app.post("/analyze", upload.none(), (req, res) => {
+app.post("/analyze", (req, res) => {
   try {
     const code = req.body.code;
     if (!code) {
-      return res.status(400).send("Missing 'code' field in request");
+      return res.status(400).json({ error: "Missing 'code' field in request" });
     }
 
     const asmPath = path.join(tempDir, "input.asm");
@@ -33,21 +30,21 @@ app.post("/analyze", upload.none(), (req, res) => {
     exec(`as ${asmPath} -o ${objPath}`, (asmErr, asmStdout, asmStderr) => {
       if (asmErr) {
         console.error("Assembly Error:", asmStderr || asmErr.message);
-        return res.status(500).send("Assembly failed:\n" + (asmStderr || asmErr.message));
+        return res.status(500).json({ error: "Assembly failed", details: asmStderr || asmErr.message });
       }
 
       exec(`python3 uiCA/uiCA.py ${objPath} -arch SKL`, (uiErr, uiStdout, uiStderr) => {
         if (uiErr) {
           console.error("uiCA Error:", uiStderr || uiErr.message);
-          return res.status(500).send("uiCA failed:\n" + (uiStderr || uiErr.message));
+          return res.status(500).json({ error: "uiCA failed", details: uiStderr || uiErr.message });
         }
 
-        res.send(uiStdout);
+        res.json({ result: uiStdout });
       });
     });
   } catch (e) {
     console.error("Unexpected error:", e);
-    res.status(500).send("Server error:\n" + e.message);
+    res.status(500).json({ error: "Server error", details: e.message });
   }
 });
 

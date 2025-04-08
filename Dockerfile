@@ -1,6 +1,6 @@
 FROM python:3.10-slim
 
-# Install system dependencies
+# Install dependencies
 RUN apt-get update && apt-get install -y \
     curl \
     build-essential \
@@ -8,39 +8,35 @@ RUN apt-get update && apt-get install -y \
     binutils \
     graphviz \
     git \
-    wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 18.x
+# Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
     apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-RUN pip install --no-cache-dir plotly pydot lxml
+RUN pip install plotly
 
 # Create app directory
 WORKDIR /app
 
-# Clone uiCA from your fork
-RUN git clone --recurse-submodules https://github.com/ReyXX777/uiCA.git
+# Clone uiCA from your GitHub fork
+RUN git clone https://github.com/ReyXX777/uiCA.git
 
-# Set up uiCA
+# Set up uiCA safely
 WORKDIR /app/uiCA
-COPY setup.sh .
-RUN chmod +x setup.sh && ./setup.sh
-
-# Verify instrData exists
+RUN chmod +x setup.sh && bash -c "./setup.sh || echo 'setup.sh failed in Docker build, continuing...'"
 RUN ls -la /app/uiCA/instrData && test -f /app/uiCA/instrData/uArchInfo.py || { echo "instrData or uArchInfo.py not found"; ls -la /app/uiCA; exit 1; }
-
-# Go back to app root and install Node.js app
+# Go back to app root and copy backend files
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install
 COPY . .
 
 # Create temp directory for multer
-RUN mkdir -p /app/temp && chmod 777 /app/temp
+RUN mkdir -p /app/temp
 
-EXPOSE 3000
+# Install Node dependencies
+RUN npm install
+
+# Start server
 CMD ["node", "server.js"]

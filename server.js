@@ -3,29 +3,52 @@ const multer = require("multer");
 const fs = require("fs");
 const { exec } = require("child_process");
 const cors = require("cors");
+const path = require("path");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const upload = multer({ dest: "temp/" });
+// Ensure temp folder exists
+const tempDir = path.join(__dirname, "temp");
+if (!fs.existsSync(tempDir)) {
+  fs.mkdirSync(tempDir);
+}
+
+const upload = multer({ dest: tempDir });
 
 app.post("/analyze", upload.none(), (req, res) => {
-  const code = req.body.code;
-  const asmPath = "temp/input.asm";
-  const objPath = "temp/input.o";
-  const asmCode = `.intel_syntax noprefix\n${code}`;
+  try {
+    const code = req.body.code;
+    if (!code) {
+      return res.status(400).send("Missing 'code' field in request");
+    }
 
-  fs.writeFileSync(asmPath, asmCode);
+    const asmPath = path.join(tempDir, "input.asm");
+    const objPath = path.join(tempDir, "input.o");
+    const asmCode = `.intel_syntax noprefix\n${code}`;
 
-  exec(`as ${asmPath} -o ${objPath}`, (err) => {
-    if (err) return res.status(500).send("Assembly failed");
+    fs.writeFileSync(asmPath, asmCode);
 
-    exec(`python3 uiCA/uiCA.py ${objPath} -arch SKL`, (err, stdout, stderr) => {
-      if (err) return res.status(500).send("uiCA failed");
-      res.send(stdout);
+    exec(`as ${asmPath} -o ${objPath}`, (asmErr, asmStdout, asmStderr) => {
+      if (asmErr) {
+        console.error("Assembly Error:", asmStderr || asmErr.message);
+        return res.status(500).send("Assembly failed:\n" + (asmStderr || asmErr.message));
+      }
+
+      exec(`python3 uiCA/uiCA.py ${objPath} -arch SKL`, (uiErr, uiStdout, uiStderr) => {
+        if (uiErr) {
+          console.error("uiCA Error:", uiStderr || uiErr.message);
+          return res.status(500).send("uiCA failed:\n" + (uiStderr || uiErr.message));
+        }
+
+        res.send(uiStdout);
+      });
     });
-  });
+  } catch (e) {
+    console.error("Unexpected error:", e);
+    res.status(500).send("Server error:\n" + e.message);
+  }
 });
 
 app.listen(3000, () => console.log("Server running on port 3000"));

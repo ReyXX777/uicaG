@@ -1,7 +1,13 @@
 FROM python:3.10-slim
 
 # Install dependencies
-RUN apt-get update && apt-get install -y curl build-essential gcc as graphviz git
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    gcc \
+    binutils \
+    graphviz \
+    git
 
 # Install Node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
